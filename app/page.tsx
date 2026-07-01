@@ -1,65 +1,205 @@
-import Image from "next/image";
-
+"use client";
+import { useState, useRef, useEffect } from "react";
+type Msg = { role: string; content: string };
+const MATIERES = [
+  { id: "philo", label: "Philosophie", emoji: "🧠", color: "#8b5cf6", bg: "#8b5cf622" },
+  { id: "histoire", label: "Histoire-Geo", emoji: "🌍", color: "#3b82f6", bg: "#3b82f622" },
+  { id: "francais", label: "Francais", emoji: "📚", color: "#ec4899", bg: "#ec489922" },
+  { id: "ses", label: "SES", emoji: "📈", color: "#f59e0b", bg: "#f59e0b22" },
+  { id: "svt", label: "Biologie SVT", emoji: "🔬", color: "#22c55e", bg: "#22c55e22" },
+  { id: "maths", label: "Mathematiques", emoji: "📐", color: "#06b6d4", bg: "#06b6d422" },
+  { id: "anglais", label: "Anglais", emoji: "🇬🇧", color: "#f97316", bg: "#f9731622" },
+];
+const SUJETS: Record<string,string[]> = {
+  philo:["La liberte","La conscience","Le bonheur","La verite","La justice"],
+  histoire:["La Revolution francaise","La 2e Guerre mondiale","La Guerre froide","La decolonisation"],
+  francais:["Le roman realiste","La poesie lyrique","Le theatre","L autobiographie"],
+  ses:["Le chomage","La mondialisation","Les inegalites","La democratie"],
+  svt:["La genetique","L evolution","Le systeme nerveux","La photosynthese"],
+  maths:["Les fonctions","Les probabilites","La geometrie","Les suites"],
+  anglais:["Climate change","Social media","Artificial intelligence","Identity"],
+};
+const NIVEAUX=[{label:"Debutant",desc:"Bienveillant",color:"#22c55e",e:"🌱"},{label:"Intermediaire",desc:"Niveau bac",color:"#3b82f6",e:"📘"},{label:"Expert",desc:"Niveau prepa",color:"#f59e0b",e:"🔥"}];
+const Q=["Definissez les termes cles et posez une problematique.","Illustrez votre propos avec un exemple concret.","Comment repondriez-vous a la position inverse ?","Citez un auteur ou une reference liee a ce sujet.","En quoi votre argument repond-il a la question ?","Concluez en deux phrases : quelle est votre these finale ?"];
+const B=[{score:14,pts:"Bonne structure. Fil directeur coherent.",axes:"Exemples trop vagues. Soyez plus precis.",conseil:"Revisez deux auteurs cles avant la prochaine session."},{score:16,pts:"Excellente argumentation. Transitions fluides.",axes:"Conclusion hesitante. Prenez position clairement.",conseil:"Entrainez-vous a conclure en 3 phrases."},{score:12,pts:"Bonne comprehension. Vous rebondissez bien.",axes:"Manque de references precises.",conseil:"Creez des fiches auteurs et citez-les naturellement."},{score:18,pts:"Remarquable. Arguments construits et precis.",axes:"Legeres imprecisions dans les citations.",conseil:"Concentrez-vous sur la fluidite orale."}];
+const TIPS=["Structurez en 3 parties : definition, argument, exemple.","Notez les auteurs sur des fiches de revision.","Prenez 5 secondes pour organiser vos idees avant de repondre.","Utilisez des connecteurs : Cependant, En effet, Ainsi.","Faites 3 sessions sur le meme sujet pour progresser."];
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+  const [page,setPage]=useState("accueil");
+  const [mat,setMat]=useState<typeof MATIERES[0]|null>(null);
+  const [suj,setSuj]=useState("");
+  const [niv,setNiv]=useState(1);
+  const [msgs,setMsgs]=useState<Msg[]>([]);
+  const [rep,setRep]=useState("");
+  const [load,setLoad]=useState(false);
+  const [n,setN]=useState(0);
+  const [bilan,setBilan]=useState<any>(null);
+  const [stats,setStats]=useState({sessions:0,moy:0,scores:[] as number[]});
+  const end=useRef<HTMLDivElement>(null);
+  useEffect(()=>{end.current?.scrollIntoView({behavior:"smooth"});},[msgs,load]);
+  function start(){
+    if(!mat||!suj.trim())return;
+    setMsgs([]);setN(0);setBilan(null);setLoad(true);
+    setTimeout(()=>{setMsgs([{role:"a",content:"Bonjour. Je suis votre examinateur de "+mat.label+".\n\nSujet : "+suj+" - Niveau : "+NIVEAUX[niv].label+"\n\n"+Q[0]}]);setPage("chat");setLoad(false);},1200);
+  }
+  function send(){
+    if(!rep.trim()||load)return;
+    const nm:Msg[]=[...msgs,{role:"u",content:rep}];
+    setMsgs(nm);setRep("");setLoad(true);
+    const nb=n+1;setN(nb);
+    setTimeout(()=>{
+      if(nb>=6){
+        setMsgs([...nm,{role:"a",content:"Session terminee ! Generation du bilan..."}]);
+        const b=B[Math.floor(Math.random()*B.length)];
+        const ns=[...stats.scores,b.score];
+        setStats({sessions:stats.sessions+1,moy:Math.round(ns.reduce((a,b)=>a+b,0)/ns.length),scores:ns});
+        setBilan({...b,n:nb});setLoad(false);
+        setTimeout(()=>setPage("bilan"),1800);
+      } else {
+        const tip=Math.random()>0.6?" \n\n💡 "+TIPS[Math.floor(Math.random()*TIPS.length)]:"";
+        setMsgs([...nm,{role:"a",content:Q[nb]+tip}]);setLoad(false);
+      }
+    },1400);
+  }
+  const c=mat?.color||"#6366f1";
+  const sc=bilan?.score;
+  const scC=sc>=16?"#22c55e":sc>=13?"#6366f1":sc>=10?"#f59e0b":"#ef4444";
+  if(page==="accueil")return(
+    <main style={{minHeight:"100vh",background:"#0a0a1a",fontFamily:"system-ui,sans-serif",color:"#fff",padding:"1rem"}}>
+      <div style={{maxWidth:"780px",margin:"0 auto",paddingTop:"2rem"}}>
+        <div style={{textAlign:"center",paddingBottom:"2rem"}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:"6px",background:"#8b5cf620",border:"1px solid #8b5cf640",borderRadius:"100px",padding:"5px 14px",fontSize:"12px",color:"#a78bfa",marginBottom:"1.25rem"}}>Preparez votre oral avec IA</div>
+          <h1 style={{fontSize:"clamp(30px,6vw,52px)",fontWeight:800,margin:"0 0 10px",background:"linear-gradient(135deg,#fff,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Simulateur d Oral IA</h1>
+          <p style={{fontSize:"16px",color:"#64748b",margin:"0 auto 1.5rem",maxWidth:"420px"}}>Entrainez-vous face a un examinateur virtuel et recevez un feedback personnalise.</p>
+          {stats.sessions>0&&<div style={{display:"inline-flex",gap:"1.5rem",background:"#ffffff08",border:"1px solid #ffffff10",borderRadius:"10px",padding:"8px 18px",fontSize:"13px",color:"#94a3b8",marginBottom:"1rem"}}>
+            <span>Sessions : {stats.sessions}</span>
+            <span>Moyenne : {stats.moy}/20</span>
+          </div>}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
+          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>1. Choisissez votre matiere</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(95px,1fr))",gap:"8px"}}>
+            {MATIERES.map(m=>(
+              <button key={m.id} onClick={()=>{setMat(m);setSuj("");}} style={{padding:"14px 6px",borderRadius:"14px",border:mat?.id===m.id?"2px solid "+m.color:"1px solid #ffffff10",background:mat?.id===m.id?m.bg:"#ffffff04",color:mat?.id===m.id?m.color:"#64748b",cursor:"pointer",textAlign:"center"}}>
+                <div style={{fontSize:"26px",marginBottom:"4px"}}>{m.emoji}</div>
+                <div style={{fontSize:"11px",fontWeight:mat?.id===m.id?700:400}}>{m.label}</div>
+              </button>
+            ))}
+          </div>
         </div>
-      </main>
-    </div>
+        {mat&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
+          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>2. Choisissez un sujet</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:"8px",marginBottom:"12px"}}>
+            {(SUJETS[mat.id]||[]).map(s=>(
+              <button key={s} onClick={()=>setSuj(s)} style={{padding:"7px 14px",borderRadius:"100px",border:suj===s?"1.5px solid "+mat.color:"1px solid #ffffff12",background:suj===s?mat.bg:"transparent",color:suj===s?mat.color:"#64748b",fontSize:"13px",cursor:"pointer",fontWeight:suj===s?600:400}}>{s}</button>
+            ))}
+          </div>
+          <input value={suj} onChange={e=>setSuj(e.target.value)} onKeyDown={e=>e.key==="Enter"&&start()} placeholder="Ou tapez votre propre sujet..." style={{width:"100%",padding:"11px 14px",borderRadius:"12px",border:"1px solid #ffffff12",background:"#ffffff06",color:"#fff",fontSize:"14px",outline:"none",boxSizing:"border-box"}}/>
+        </div>}
+        {mat&&suj&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1.25rem"}}>
+          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>3. Choisissez votre niveau</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>
+            {NIVEAUX.map((nv,i)=>(
+              <button key={i} onClick={()=>setNiv(i)} style={{padding:"14px 8px",borderRadius:"14px",border:niv===i?"2px solid "+nv.color:"1px solid #ffffff10",background:niv===i?nv.color+"18":"#ffffff04",color:niv===i?nv.color:"#64748b",cursor:"pointer",textAlign:"center"}}>
+                <div style={{fontSize:"22px",marginBottom:"4px"}}>{nv.e}</div>
+                <div style={{fontSize:"13px",fontWeight:600}}>{nv.label}</div>
+                <div style={{fontSize:"11px",opacity:.7,marginTop:"2px"}}>{nv.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>}
+        {mat&&suj&&<button onClick={start} disabled={load} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"16px",fontWeight:700,cursor:"pointer",marginBottom:"1rem"}}>
+          {load?"Preparation...":"Commencer l oral en "+mat.label+" ->"}
+        </button>}
+        <div style={{padding:"12px 16px",background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"12px",fontSize:"13px",color:"#475569",textAlign:"center"}}>
+          Conseil : {TIPS[0]}
+        </div>
+      </div>
+    </main>
+  );
+  if(page==="chat")return(
+    <main style={{minHeight:"100vh",background:"#0a0a1a",display:"flex",flexDirection:"column",alignItems:"center",padding:"1rem",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{width:"100%",maxWidth:"680px",display:"flex",flexDirection:"column",height:"92vh",background:"#0f0f1e",border:"1px solid "+c+"33",borderRadius:"20px",overflow:"hidden"}}>
+        <div style={{padding:"14px 18px",borderBottom:"1px solid #ffffff08",display:"flex",alignItems:"center",justifyContent:"space-between",background:c+"12"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+            <div style={{width:"38px",height:"38px",borderRadius:"50%",background:"linear-gradient(135deg,"+c+",#6366f1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px"}}>{mat?.emoji}</div>
+            <div>
+              <p style={{fontSize:"14px",fontWeight:600,color:"#fff",margin:0}}>Examinateur IA - {mat?.label}</p>
+              <p style={{fontSize:"12px",color:"#64748b",margin:0}}>{suj} - {NIVEAUX[niv].label}</p>
+            </div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:"13px",fontWeight:700,color:c}}>Q {n}/6</div>
+            <div style={{width:"90px",height:"4px",background:"#ffffff10",borderRadius:"2px",marginTop:"4px"}}>
+              <div style={{width:Math.round((n/6)*100)+"%",height:"100%",background:"linear-gradient(90deg,"+c+",#6366f1)",borderRadius:"2px",transition:"width .4s"}}></div>
+            </div>
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"1.25rem",display:"flex",flexDirection:"column",gap:"14px"}}>
+          {msgs.map((m,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:m.role==="a"?"flex-start":"flex-end",alignItems:"flex-end",gap:"8px"}}>
+              {m.role==="a"&&<div style={{width:"30px",height:"30px",borderRadius:"50%",background:"linear-gradient(135deg,"+c+",#6366f1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",flexShrink:0}}>{mat?.emoji}</div>}
+              <div style={{maxWidth:"75%",padding:"11px 15px",borderRadius:m.role==="a"?"16px 16px 16px 4px":"16px 16px 4px 16px",background:m.role==="a"?"#1e293b":"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"14px",lineHeight:1.7,border:m.role==="a"?"1px solid #ffffff0f":"none",whiteSpace:"pre-line"}}>{m.content}</div>
+            </div>
+          ))}
+          {load&&<div style={{display:"flex",alignItems:"flex-end",gap:"8px"}}>
+            <div style={{width:"30px",height:"30px",borderRadius:"50%",background:"linear-gradient(135deg,"+c+",#6366f1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px"}}>{mat?.emoji}</div>
+            <div style={{padding:"11px 16px",background:"#1e293b",border:"1px solid #ffffff0f",borderRadius:"16px 16px 16px 4px",display:"flex",gap:"5px"}}>
+              {[0,150,300].map(d=><span key={d} style={{width:"7px",height:"7px",borderRadius:"50%",background:c,display:"inline-block",animation:"b 1.2s infinite",animationDelay:d+"ms",opacity:.8}}></span>)}
+            </div>
+          </div>}
+          <div ref={end}/>
+        </div>
+        <div style={{padding:"12px 16px",borderTop:"1px solid #ffffff08",background:"#0a0a1a",display:"flex",gap:"8px",alignItems:"flex-end"}}>
+          <textarea value={rep} onChange={e=>setRep(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Tapez votre reponse... (Entree pour envoyer)" rows={2} style={{flex:1,padding:"10px 14px",borderRadius:"12px",border:"1px solid #ffffff10",background:"#ffffff08",color:"#fff",fontSize:"14px",resize:"none",fontFamily:"inherit",lineHeight:1.5,outline:"none"}}/>
+          <button onClick={send} disabled={!rep.trim()||load} style={{width:"42px",height:"42px",borderRadius:"12px",border:"none",background:rep.trim()&&!load?"linear-gradient(135deg,"+c+",#6366f1)":"#ffffff10",color:"#fff",cursor:rep.trim()&&!load?"pointer":"not-allowed",fontSize:"20px",flexShrink:0}}>↑</button>
+        </div>
+      </div>
+      <style>{"@keyframes b{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}"}</style>
+    </main>
+  );
+  return(
+    <main style={{minHeight:"100vh",background:"#0a0a1a",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{width:"100%",maxWidth:"480px"}}>
+        <div style={{textAlign:"center",marginBottom:"1.5rem"}}>
+          <div style={{fontSize:"52px",marginBottom:"8px"}}>{sc>=16?"🏆":sc>=13?"🎯":sc>=10?"📈":"💪"}</div>
+          <h2 style={{fontSize:"24px",fontWeight:800,color:"#fff",margin:"0 0 4px"}}>Session terminee !</h2>
+          <p style={{fontSize:"13px",color:"#64748b",margin:0}}>{mat?.label} - {suj}</p>
+        </div>
+        <div style={{background:"#ffffff06",border:"1px solid "+scC+"33",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+            <div>
+              <div style={{fontSize:"12px",color:"#64748b",marginBottom:"3px"}}>Votre score</div>
+              <div style={{fontSize:"44px",fontWeight:800,color:scC,lineHeight:1}}>{sc}<span style={{fontSize:"18px",color:"#475569"}}>/20</span></div>
+              <div style={{fontSize:"13px",color:scC,fontWeight:600,marginTop:"3px"}}>{sc>=16?"Excellent !":sc>=13?"Bien":sc>=10?"Passable":"A retravailler"}</div>
+            </div>
+            {stats.sessions>0&&<div style={{textAlign:"right"}}>
+              <div style={{fontSize:"11px",color:"#475569"}}>Moyenne</div>
+              <div style={{fontSize:"22px",fontWeight:700,color:"#6366f1"}}>{stats.moy}/20</div>
+              <div style={{fontSize:"11px",color:"#475569"}}>{stats.sessions} sessions</div>
+            </div>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"1.25rem"}}>
+            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px"}}>
+              <div style={{fontSize:"18px",fontWeight:700,color:"#e2e8f0"}}>{bilan?.n}</div>
+              <div style={{fontSize:"11px",color:"#475569"}}>echanges</div>
+            </div>
+            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px"}}>
+              <div style={{fontSize:"14px",fontWeight:700,color:NIVEAUX[niv].color}}>{NIVEAUX[niv].label}</div>
+              <div style={{fontSize:"11px",color:"#475569"}}>niveau</div>
+            </div>
+          </div>
+          {[{e:"⭐",t:"Points forts",v:bilan?.pts,col:"#22c55e"},{e:"🎯",t:"A ameliorer",v:bilan?.axes,col:"#f59e0b"},{e:"💡",t:"Conseil",v:bilan?.conseil,col:"#6366f1"}].map(x=>x.v&&(
+            <div key={x.t} style={{marginBottom:"8px",padding:"10px 12px",background:x.col+"12",border:"1px solid "+x.col+"28",borderRadius:"10px"}}>
+              <div style={{fontSize:"12px",fontWeight:600,color:x.col,marginBottom:"3px"}}>{x.e} {x.t}</div>
+              <p style={{fontSize:"13px",color:"#94a3b8",margin:0,lineHeight:1.6}}>{x.v}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+          <button onClick={start} style={{padding:"13px",borderRadius:"12px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"14px",fontWeight:600,cursor:"pointer"}}>Rejouer</button>
+          <button onClick={()=>setPage("accueil")} style={{padding:"13px",borderRadius:"12px",border:"1px solid #ffffff12",background:"transparent",color:"#94a3b8",fontSize:"14px",cursor:"pointer"}}>Accueil</button>
+        </div>
+      </div>
+    </main>
   );
 }
