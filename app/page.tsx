@@ -9,6 +9,7 @@ const MATIERES = [
   { id: "svt", label: "Biologie SVT", emoji: "🔬", color: "#22c55e", bg: "#22c55e22" },
   { id: "maths", label: "Mathematiques", emoji: "📐", color: "#06b6d4", bg: "#06b6d422" },
   { id: "anglais", label: "Anglais", emoji: "🇬🇧", color: "#f97316", bg: "#f9731622" },
+  { id: "info", label: "Informatique", emoji: "💻", color: "#a855f7", bg: "#a855f722" },
 ];
 const SUJETS: Record<string,string[]> = {
   philo:["La liberte","La conscience","Le bonheur","La verite","La justice"],
@@ -18,11 +19,11 @@ const SUJETS: Record<string,string[]> = {
   svt:["La genetique","L evolution","Le systeme nerveux","La photosynthese"],
   maths:["Les fonctions","Les probabilites","La geometrie","Les suites"],
   anglais:["Climate change","Social media","Artificial intelligence","Identity"],
+  info:["Les algorithmes","L intelligence artificielle","La cybersecurite","Les reseaux","La cryptographie","Le Big Data","La programmation orientee objet","Les bases de donnees"],
 };
 const NIVEAUX=[{label:"Debutant",desc:"Bienveillant",color:"#22c55e",e:"🌱"},{label:"Intermediaire",desc:"Niveau bac",color:"#3b82f6",e:"📘"},{label:"Expert",desc:"Niveau prepa",color:"#f59e0b",e:"🔥"}];
-const Q=["Definissez les termes cles et posez une problematique.","Illustrez votre propos avec un exemple concret.","Comment repondriez-vous a la position inverse ?","Citez un auteur ou une reference liee a ce sujet.","En quoi votre argument repond-il a la question ?","Concluez en deux phrases : quelle est votre these finale ?"];
 const B=[{score:14,pts:"Bonne structure. Fil directeur coherent.",axes:"Exemples trop vagues. Soyez plus precis.",conseil:"Revisez deux auteurs cles avant la prochaine session."},{score:16,pts:"Excellente argumentation. Transitions fluides.",axes:"Conclusion hesitante. Prenez position clairement.",conseil:"Entrainez-vous a conclure en 3 phrases."},{score:12,pts:"Bonne comprehension. Vous rebondissez bien.",axes:"Manque de references precises.",conseil:"Creez des fiches auteurs et citez-les naturellement."},{score:18,pts:"Remarquable. Arguments construits et precis.",axes:"Legeres imprecisions dans les citations.",conseil:"Concentrez-vous sur la fluidite orale."}];
-const TIPS=["Structurez en 3 parties : definition, argument, exemple.","Notez les auteurs sur des fiches de revision.","Prenez 5 secondes pour organiser vos idees avant de repondre.","Utilisez des connecteurs : Cependant, En effet, Ainsi.","Faites 3 sessions sur le meme sujet pour progresser."];
+const TIP = "Structurez en 3 parties : definition, argument, exemple.";
 export default function Home() {
   const [page,setPage]=useState("accueil");
   const [mat,setMat]=useState<typeof MATIERES[0]|null>(null);
@@ -33,32 +34,53 @@ export default function Home() {
   const [load,setLoad]=useState(false);
   const [n,setN]=useState(0);
   const [bilan,setBilan]=useState<any>(null);
+  const [erreur,setErreur]=useState("");
   const [stats,setStats]=useState({sessions:0,moy:0,scores:[] as number[]});
   const end=useRef<HTMLDivElement>(null);
   useEffect(()=>{end.current?.scrollIntoView({behavior:"smooth"});},[msgs,load]);
-  function start(){
-    if(!mat||!suj.trim())return;
-    setMsgs([]);setN(0);setBilan(null);setLoad(true);
-    setTimeout(()=>{setMsgs([{role:"a",content:"Bonjour. Je suis votre examinateur de "+mat.label+".\n\nSujet : "+suj+" - Niveau : "+NIVEAUX[niv].label+"\n\n"+Q[0]}]);setPage("chat");setLoad(false);},1200);
+  async function appelIA(history: Msg[], systemPrompt: string): Promise<string|null> {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ messages: history, systemPrompt })
+      });
+      const data = await res.json();
+      if (data.error) { setErreur(data.error); return null; }
+      return data.content || null;
+    } catch(e) { setErreur("Erreur de connexion"); return null; }
   }
-  function send(){
+  function getPrompt() {
+    return "Tu es un examinateur de "+mat?.label+" pour le baccalaureat francais. Niveau : "+NIVEAUX[niv].label+". Le sujet est : "+suj+". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. Apres exactement 6 echanges, ecris uniquement : FIN_DE_SESSION";
+  }
+  async function start() {
+    if(!mat||!suj.trim())return;
+    setMsgs([]);setN(0);setBilan(null);setErreur("");setLoad(true);
+    const repIA = await appelIA([{role:"user",content:"Commence l examen."}], getPrompt());
+    if(repIA){setMsgs([{role:"assistant",content:repIA}]);setPage("chat");}
+    setLoad(false);
+  }
+  async function send() {
     if(!rep.trim()||load)return;
-    const nm:Msg[]=[...msgs,{role:"u",content:rep}];
-    setMsgs(nm);setRep("");setLoad(true);
+    const newMsgs: Msg[]=[...msgs,{role:"user",content:rep}];
+    setMsgs(newMsgs);setRep("");setErreur("");setLoad(true);
     const nb=n+1;setN(nb);
-    setTimeout(()=>{
-      if(nb>=6){
-        setMsgs([...nm,{role:"a",content:"Session terminee ! Generation du bilan..."}]);
+    const history: Msg[]=newMsgs.map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.content}));
+    const repIA = await appelIA(history, getPrompt());
+    if(repIA){
+      if(repIA.includes("FIN_DE_SESSION")||nb>=6){
+        const texte=repIA.replace("FIN_DE_SESSION","").trim();
+        if(texte)setMsgs([...newMsgs,{role:"assistant",content:texte}]);
         const b=B[Math.floor(Math.random()*B.length)];
         const ns=[...stats.scores,b.score];
         setStats({sessions:stats.sessions+1,moy:Math.round(ns.reduce((a,b)=>a+b,0)/ns.length),scores:ns});
-        setBilan({...b,n:nb});setLoad(false);
+        setBilan({...b,n:nb});
         setTimeout(()=>setPage("bilan"),1800);
       } else {
-        const tip=Math.random()>0.6?" \n\n💡 "+TIPS[Math.floor(Math.random()*TIPS.length)]:"";
-        setMsgs([...nm,{role:"a",content:Q[nb]+tip}]);setLoad(false);
+        setMsgs([...newMsgs,{role:"assistant",content:repIA}]);
       }
-    },1400);
+    }
+    setLoad(false);
   }
   const c=mat?.color||"#6366f1";
   const sc=bilan?.score;
@@ -69,7 +91,7 @@ export default function Home() {
         <div style={{textAlign:"center",paddingBottom:"2rem"}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:"6px",background:"#8b5cf620",border:"1px solid #8b5cf640",borderRadius:"100px",padding:"5px 14px",fontSize:"12px",color:"#a78bfa",marginBottom:"1.25rem"}}>Preparez votre oral avec IA</div>
           <h1 style={{fontSize:"clamp(30px,6vw,52px)",fontWeight:800,margin:"0 0 10px",background:"linear-gradient(135deg,#fff,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Simulateur d Oral IA</h1>
-          <p style={{fontSize:"16px",color:"#64748b",margin:"0 auto 1.5rem",maxWidth:"420px"}}>Entrainez-vous face a un examinateur virtuel et recevez un feedback personnalise.</p>
+          <p style={{fontSize:"16px",color:"#64748b",margin:"0 auto 1.5rem",maxWidth:"420px"}}>Entrainez-vous face a un examinateur virtuel intelligent.</p>
           {stats.sessions>0&&<div style={{display:"inline-flex",gap:"1.5rem",background:"#ffffff08",border:"1px solid #ffffff10",borderRadius:"10px",padding:"8px 18px",fontSize:"13px",color:"#94a3b8",marginBottom:"1rem"}}>
             <span>Sessions : {stats.sessions}</span>
             <span>Moyenne : {stats.moy}/20</span>
@@ -77,7 +99,7 @@ export default function Home() {
         </div>
         <div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
           <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>1. Choisissez votre matiere</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(95px,1fr))",gap:"8px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:"8px"}}>
             {MATIERES.map(m=>(
               <button key={m.id} onClick={()=>{setMat(m);setSuj("");}} style={{padding:"14px 6px",borderRadius:"14px",border:mat?.id===m.id?"2px solid "+m.color:"1px solid #ffffff10",background:mat?.id===m.id?m.bg:"#ffffff04",color:mat?.id===m.id?m.color:"#64748b",cursor:"pointer",textAlign:"center"}}>
                 <div style={{fontSize:"26px",marginBottom:"4px"}}>{m.emoji}</div>
@@ -107,11 +129,12 @@ export default function Home() {
             ))}
           </div>
         </div>}
-        {mat&&suj&&<button onClick={start} disabled={load} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"16px",fontWeight:700,cursor:"pointer",marginBottom:"1rem"}}>
-          {load?"Preparation...":"Commencer l oral en "+mat.label+" ->"}
+        {erreur&&<div style={{padding:"10px 14px",background:"#ef444420",border:"1px solid #ef444440",borderRadius:"10px",color:"#ef4444",fontSize:"13px",marginBottom:"1rem"}}>{erreur}</div>}
+        {mat&&suj&&<button onClick={start} disabled={load} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"16px",fontWeight:700,cursor:"pointer",marginBottom:"1rem",opacity:load?0.6:1}}>
+          {load?"Preparation de l examinateur...":"Commencer l oral en "+mat.label+" ->"}
         </button>}
         <div style={{padding:"12px 16px",background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"12px",fontSize:"13px",color:"#475569",textAlign:"center"}}>
-          Conseil : {TIPS[0]}
+          Conseil : {TIP}
         </div>
       </div>
     </main>
@@ -134,11 +157,12 @@ export default function Home() {
             </div>
           </div>
         </div>
+        {erreur&&<div style={{padding:"10px 14px",background:"#ef444420",color:"#ef4444",fontSize:"13px",borderBottom:"1px solid #ef444430"}}>{erreur}</div>}
         <div style={{flex:1,overflowY:"auto",padding:"1.25rem",display:"flex",flexDirection:"column",gap:"14px"}}>
           {msgs.map((m,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:m.role==="a"?"flex-start":"flex-end",alignItems:"flex-end",gap:"8px"}}>
-              {m.role==="a"&&<div style={{width:"30px",height:"30px",borderRadius:"50%",background:"linear-gradient(135deg,"+c+",#6366f1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",flexShrink:0}}>{mat?.emoji}</div>}
-              <div style={{maxWidth:"75%",padding:"11px 15px",borderRadius:m.role==="a"?"16px 16px 16px 4px":"16px 16px 4px 16px",background:m.role==="a"?"#1e293b":"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"14px",lineHeight:1.7,border:m.role==="a"?"1px solid #ffffff0f":"none",whiteSpace:"pre-line"}}>{m.content}</div>
+            <div key={i} style={{display:"flex",justifyContent:m.role==="assistant"?"flex-start":"flex-end",alignItems:"flex-end",gap:"8px"}}>
+              {m.role==="assistant"&&<div style={{width:"30px",height:"30px",borderRadius:"50%",background:"linear-gradient(135deg,"+c+",#6366f1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",flexShrink:0}}>{mat?.emoji}</div>}
+              <div style={{maxWidth:"75%",padding:"11px 15px",borderRadius:m.role==="assistant"?"16px 16px 16px 4px":"16px 16px 4px 16px",background:m.role==="assistant"?"#1e293b":"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"14px",lineHeight:1.7,border:m.role==="assistant"?"1px solid #ffffff0f":"none",whiteSpace:"pre-line"}}>{m.content}</div>
             </div>
           ))}
           {load&&<div style={{display:"flex",alignItems:"flex-end",gap:"8px"}}>
@@ -177,16 +201,6 @@ export default function Home() {
               <div style={{fontSize:"22px",fontWeight:700,color:"#6366f1"}}>{stats.moy}/20</div>
               <div style={{fontSize:"11px",color:"#475569"}}>{stats.sessions} sessions</div>
             </div>}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"1.25rem"}}>
-            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px"}}>
-              <div style={{fontSize:"18px",fontWeight:700,color:"#e2e8f0"}}>{bilan?.n}</div>
-              <div style={{fontSize:"11px",color:"#475569"}}>echanges</div>
-            </div>
-            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px"}}>
-              <div style={{fontSize:"14px",fontWeight:700,color:NIVEAUX[niv].color}}>{NIVEAUX[niv].label}</div>
-              <div style={{fontSize:"11px",color:"#475569"}}>niveau</div>
-            </div>
           </div>
           {[{e:"⭐",t:"Points forts",v:bilan?.pts,col:"#22c55e"},{e:"🎯",t:"A ameliorer",v:bilan?.axes,col:"#f59e0b"},{e:"💡",t:"Conseil",v:bilan?.conseil,col:"#6366f1"}].map(x=>x.v&&(
             <div key={x.t} style={{marginBottom:"8px",padding:"10px 12px",background:x.col+"12",border:"1px solid "+x.col+"28",borderRadius:"10px"}}>
