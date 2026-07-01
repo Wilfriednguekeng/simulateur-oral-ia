@@ -208,7 +208,7 @@ export default function Home() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <div style={{ fontSize: "20px", fontWeight: 800, background: "linear-gradient(135deg,#fff,#a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>🎓 OralIA</div>
           <div style={{ display: "flex", gap: "8px" }}>
-            <button onClick={chargerClassement} style={{ background: "#f59e0b15", border: "1px solid #f59e0b30", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#f59e0b", cursor: "pointer" }}>🏆 Classement</button>
+            <a href="/competition" style={{ background: "linear-gradient(135deg,#f59e0b,#ef4444)", borderRadius: "10px", padding: "7px 14px", fontSize: "12px", color: "#fff", textDecoration: "none", fontWeight: 700 }}>🏆 Mode Competition</a><button onClick={chargerClassement} style={{ background: "#f59e0b15", border: "1px solid #f59e0b30", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#f59e0b", cursor: "pointer" }}>📊 Classement</button>
             {user ? (
               <div style={{ display: "flex", gap: "8px" }}>
                 <div style={{ background: "#ffffff08", border: "1px solid #ffffff10", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#94a3b8" }}>👤 {user.email?.split("@")[0]}</div>
