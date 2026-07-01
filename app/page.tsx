@@ -10,16 +10,24 @@ const MATIERES = [
   { id: "maths", label: "Mathematiques", emoji: "📐", color: "#06b6d4", bg: "#06b6d422" },
   { id: "anglais", label: "Anglais", emoji: "🇬🇧", color: "#f97316", bg: "#f9731622" },
   { id: "info", label: "Informatique", emoji: "💻", color: "#a855f7", bg: "#a855f722" },
+  { id: "droit", label: "Droit", emoji: "⚖️", color: "#14b8a6", bg: "#14b8a622" },
+  { id: "eco", label: "Economie", emoji: "💰", color: "#84cc16", bg: "#84cc1622" },
+  { id: "sport", label: "EPS / Sport", emoji: "🏃", color: "#ef4444", bg: "#ef444422" },
+  { id: "autre", label: "Autre", emoji: "✨", color: "#f43f5e", bg: "#f43f5e22" },
 ];
 const SUJETS: Record<string,string[]> = {
-  philo:["La liberte","La conscience","Le bonheur","La verite","La justice"],
-  histoire:["La Revolution francaise","La 2e Guerre mondiale","La Guerre froide","La decolonisation"],
-  francais:["Le roman realiste","La poesie lyrique","Le theatre","L autobiographie"],
-  ses:["Le chomage","La mondialisation","Les inegalites","La democratie"],
-  svt:["La genetique","L evolution","Le systeme nerveux","La photosynthese"],
-  maths:["Les fonctions","Les probabilites","La geometrie","Les suites"],
-  anglais:["Climate change","Social media","Artificial intelligence","Identity"],
-  info:["Les algorithmes","L intelligence artificielle","La cybersecurite","Les reseaux","La cryptographie","Le Big Data","La programmation orientee objet","Les bases de donnees"],
+  philo:["La liberte","La conscience","Le bonheur","La verite","La justice","Le temps","L art","La nature"],
+  histoire:["La Revolution francaise","La 2e Guerre mondiale","La Guerre froide","La decolonisation","L Europe","La 1ere Guerre mondiale"],
+  francais:["Le roman realiste","La poesie lyrique","Le theatre","L autobiographie","Le romantisme","Le surrealisme"],
+  ses:["Le chomage","La mondialisation","Les inegalites","La democratie","La croissance economique","Le marche"],
+  svt:["La genetique","L evolution","Le systeme nerveux","La photosynthese","La reproduction","L immunologie"],
+  maths:["Les fonctions","Les probabilites","La geometrie","Les suites","Les derivees","Les integrales"],
+  anglais:["Climate change","Social media","Artificial intelligence","Identity","Immigration","Technology"],
+  info:["Les algorithmes","L intelligence artificielle","La cybersecurite","Les reseaux","La cryptographie","Le Big Data","La POO","Les bases de donnees"],
+  droit:["Le contrat","La responsabilite civile","Les droits fondamentaux","La justice penale","Le droit du travail","La Constitution"],
+  eco:["L inflation","Le PIB","Le libre echange","La politique monetaire","Les inegalites","La mondialisation"],
+  sport:["L endurance","La tactique sportive","Le dopage","Le sport et la societe","La performance","L arbitrage"],
+  autre:[],
 };
 const NIVEAUX=[{label:"Debutant",desc:"Bienveillant",color:"#22c55e",e:"🌱"},{label:"Intermediaire",desc:"Niveau bac",color:"#3b82f6",e:"📘"},{label:"Expert",desc:"Niveau prepa",color:"#f59e0b",e:"🔥"}];
 const MODES=[{label:"6 questions",desc:"Session rapide",val:6,e:"⚡"},{label:"12 questions",desc:"Session complete",val:12,e:"📘"},{label:"Infini",desc:"Sans limite",val:999,e:"♾️"}];
@@ -28,6 +36,7 @@ export default function Home() {
   const [page,setPage]=useState("accueil");
   const [mat,setMat]=useState<typeof MATIERES[0]|null>(null);
   const [suj,setSuj]=useState("");
+  const [matCustom,setMatCustom]=useState("");
   const [niv,setNiv]=useState(1);
   const [mode,setMode]=useState(0);
   const [msgs,setMsgs]=useState<Msg[]>([]);
@@ -40,6 +49,9 @@ export default function Home() {
   const [stats,setStats]=useState({sessions:0,moy:0,scores:[] as number[]});
   const end=useRef<HTMLDivElement>(null);
   useEffect(()=>{end.current?.scrollIntoView({behavior:"smooth"});},[msgs,load]);
+
+  const matLabel = mat?.id === "autre" && matCustom.trim() ? matCustom.trim() : mat?.label || "";
+
   async function appelIA(history: Msg[], systemPrompt: string): Promise<string|null> {
     try {
       const res = await fetch("/api/chat", {
@@ -54,10 +66,11 @@ export default function Home() {
   }
   function getPrompt() {
     const limite = MODES[mode].val === 999 ? "Tu peux poser autant de questions que necessaire." : "Apres exactement "+MODES[mode].val+" echanges, ecris uniquement : FIN_DE_SESSION";
-    return "Tu es un examinateur de "+mat?.label+" pour le baccalaureat francais. Niveau : "+NIVEAUX[niv].label+". Le sujet est : "+suj+". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. "+limite;
+    return "Tu es un examinateur de "+matLabel+" pour le baccalaureat francais. Niveau : "+NIVEAUX[niv].label+". Le sujet est : "+suj+". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. "+limite;
   }
   async function start() {
     if(!mat||!suj.trim())return;
+    if(mat.id==="autre"&&!matCustom.trim())return;
     setMsgs([]);setN(0);setBilan(null);setErreur("");setLoad(true);
     const repIA = await appelIA([{role:"user",content:"Commence l examen."}], getPrompt());
     if(repIA){setMsgs([{role:"assistant",content:repIA}]);setPage("chat");}
@@ -94,8 +107,8 @@ export default function Home() {
     setGenBilan(true);
     setPage("bilan");
     const transcription = finalMsgs.map(m=>(m.role==="assistant"?"Examinateur: ":"Eleve: ")+m.content).join("\n\n");
-    const bilanPrompt = "Voici une session orale de "+mat?.label+" sur le sujet: "+suj+".\n\n"+transcription+"\n\nAnalyse les reponses de l eleve et donne un bilan JSON valide:\n{\"score\": 0-20, \"pts\": \"points forts en 1 phrase\", \"axes\": \"axes amelioration en 1 phrase\", \"conseil\": \"conseil concret en 1 phrase\"}\nReponds UNIQUEMENT avec le JSON, sans markdown ni texte autour.";
-    const repIA = await appelIA([{role:"user",content:bilanPrompt}], "Tu es un correcteur bienveillant du baccalaureat francais. Reponds uniquement avec du JSON valide.");
+    const bilanPrompt = "Voici une session orale de "+matLabel+" sur le sujet: "+suj+".\n\n"+transcription+"\n\nAnalyse les reponses de l eleve et donne un bilan JSON valide:\n{\"score\": 0-20, \"pts\": \"points forts en 1 phrase\", \"axes\": \"axes amelioration en 1 phrase\", \"conseil\": \"conseil concret en 1 phrase\"}\nReponds UNIQUEMENT avec le JSON, sans markdown ni texte autour.";
+    const repIA = await appelIA([{role:"user",content:bilanPrompt}], "Tu es un correcteur bienveillant. Reponds uniquement avec du JSON valide.");
     setGenBilan(false);
     if(repIA){
       try {
@@ -129,21 +142,24 @@ export default function Home() {
           <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>1. Choisissez votre matiere</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:"8px"}}>
             {MATIERES.map(m=>(
-              <button key={m.id} onClick={()=>{setMat(m);setSuj("");}} style={{padding:"14px 6px",borderRadius:"14px",border:mat?.id===m.id?"2px solid "+m.color:"1px solid #ffffff10",background:mat?.id===m.id?m.bg:"#ffffff04",color:mat?.id===m.id?m.color:"#64748b",cursor:"pointer",textAlign:"center"}}>
+              <button key={m.id} onClick={()=>{setMat(m);setSuj("");setMatCustom("");}} style={{padding:"14px 6px",borderRadius:"14px",border:mat?.id===m.id?"2px solid "+m.color:"1px solid #ffffff10",background:mat?.id===m.id?m.bg:"#ffffff04",color:mat?.id===m.id?m.color:"#64748b",cursor:"pointer",textAlign:"center"}}>
                 <div style={{fontSize:"26px",marginBottom:"4px"}}>{m.emoji}</div>
                 <div style={{fontSize:"11px",fontWeight:mat?.id===m.id?700:400}}>{m.label}</div>
               </button>
             ))}
           </div>
+          {mat?.id==="autre"&&<div style={{marginTop:"12px"}}>
+            <input value={matCustom} onChange={e=>setMatCustom(e.target.value)} placeholder="Nom de votre matiere (ex: Droit, Avocat, Marketing...)" style={{width:"100%",padding:"11px 14px",borderRadius:"12px",border:"1px solid #f43f5e44",background:"#f43f5e11",color:"#fff",fontSize:"14px",outline:"none",boxSizing:"border-box"}}/>
+          </div>}
         </div>
         {mat&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
           <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>2. Choisissez un sujet</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:"8px",marginBottom:"12px"}}>
+          {(SUJETS[mat.id]||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:"8px",marginBottom:"12px"}}>
             {(SUJETS[mat.id]||[]).map(s=>(
               <button key={s} onClick={()=>setSuj(s)} style={{padding:"7px 14px",borderRadius:"100px",border:suj===s?"1.5px solid "+mat.color:"1px solid #ffffff12",background:suj===s?mat.bg:"transparent",color:suj===s?mat.color:"#64748b",fontSize:"13px",cursor:"pointer",fontWeight:suj===s?600:400}}>{s}</button>
             ))}
-          </div>
-          <input value={suj} onChange={e=>setSuj(e.target.value)} onKeyDown={e=>e.key==="Enter"&&start()} placeholder="Ou tapez votre propre sujet..." style={{width:"100%",padding:"11px 14px",borderRadius:"12px",border:"1px solid #ffffff12",background:"#ffffff06",color:"#fff",fontSize:"14px",outline:"none",boxSizing:"border-box"}}/>
+          </div>}
+          <input value={suj} onChange={e=>setSuj(e.target.value)} onKeyDown={e=>e.key==="Enter"&&start()} placeholder={mat.id==="autre"?"Tapez votre sujet...":"Ou tapez votre propre sujet..."} style={{width:"100%",padding:"11px 14px",borderRadius:"12px",border:"1px solid #ffffff12",background:"#ffffff06",color:"#fff",fontSize:"14px",outline:"none",boxSizing:"border-box"}}/>
         </div>}
         {mat&&suj&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
           <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>3. Niveau de l examinateur</div>
@@ -170,8 +186,8 @@ export default function Home() {
           </div>
         </div>}
         {erreur&&<div style={{padding:"10px 14px",background:"#ef444420",border:"1px solid #ef444440",borderRadius:"10px",color:"#ef4444",fontSize:"13px",marginBottom:"1rem"}}>{erreur}</div>}
-        {mat&&suj&&<button onClick={start} disabled={load} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"16px",fontWeight:700,cursor:"pointer",marginBottom:"1rem",opacity:load?0.6:1}}>
-          {load?"Preparation...":"Commencer l oral en "+mat.label+" ->"}
+        {mat&&suj&&(mat.id!=="autre"||matCustom.trim())&&<button onClick={start} disabled={load} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"16px",fontWeight:700,cursor:"pointer",marginBottom:"1rem",opacity:load?0.6:1}}>
+          {load?"Preparation...":"Commencer l oral en "+(matLabel||mat.label)+" ->"}
         </button>}
         <div style={{padding:"12px 16px",background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"12px",fontSize:"13px",color:"#475569",textAlign:"center"}}>{TIP}</div>
       </div>
@@ -184,7 +200,7 @@ export default function Home() {
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <div style={{width:"38px",height:"38px",borderRadius:"50%",background:"linear-gradient(135deg,"+c+",#6366f1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px"}}>{mat?.emoji}</div>
             <div>
-              <p style={{fontSize:"14px",fontWeight:600,color:"#fff",margin:0}}>Examinateur IA - {mat?.label}</p>
+              <p style={{fontSize:"14px",fontWeight:600,color:"#fff",margin:0}}>Examinateur IA - {matLabel}</p>
               <p style={{fontSize:"12px",color:"#64748b",margin:0}}>{suj} - {NIVEAUX[niv].label}</p>
             </div>
           </div>
@@ -228,21 +244,21 @@ export default function Home() {
     <main style={{minHeight:"100vh",background:"#0a0a1a",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem",fontFamily:"system-ui,sans-serif"}}>
       <div style={{width:"100%",maxWidth:"480px"}}>
         <div style={{textAlign:"center",marginBottom:"1.5rem"}}>
-          {genBilan ? (
+          {genBilan?(
             <div>
               <div style={{fontSize:"40px",marginBottom:"12px"}}>⏳</div>
               <h2 style={{fontSize:"22px",fontWeight:800,color:"#fff",margin:"0 0 8px"}}>Analyse en cours...</h2>
               <p style={{fontSize:"14px",color:"#64748b"}}>L IA evalue vos reponses</p>
             </div>
-          ) : (
+          ):(
             <>
               <div style={{fontSize:"52px",marginBottom:"8px"}}>{sc>=16?"🏆":sc>=13?"🎯":sc>=10?"📈":"💪"}</div>
               <h2 style={{fontSize:"24px",fontWeight:800,color:"#fff",margin:"0 0 4px"}}>Session terminee !</h2>
-              <p style={{fontSize:"13px",color:"#64748b",margin:0}}>{mat?.label} - {suj}</p>
+              <p style={{fontSize:"13px",color:"#64748b",margin:0}}>{matLabel} - {suj}</p>
             </>
           )}
         </div>
-        {!genBilan && bilan && <>
+        {!genBilan&&bilan&&<>
           <div style={{background:"#ffffff06",border:"1px solid "+scC+"33",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
               <div>
