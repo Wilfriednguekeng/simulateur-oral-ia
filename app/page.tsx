@@ -23,7 +23,6 @@ const SUJETS: Record<string,string[]> = {
 };
 const NIVEAUX=[{label:"Debutant",desc:"Bienveillant",color:"#22c55e",e:"🌱"},{label:"Intermediaire",desc:"Niveau bac",color:"#3b82f6",e:"📘"},{label:"Expert",desc:"Niveau prepa",color:"#f59e0b",e:"🔥"}];
 const MODES=[{label:"6 questions",desc:"Session rapide",val:6,e:"⚡"},{label:"12 questions",desc:"Session complete",val:12,e:"📘"},{label:"Infini",desc:"Sans limite",val:999,e:"♾️"}];
-const B=[{score:14,pts:"Bonne structure. Fil directeur coherent.",axes:"Exemples trop vagues. Soyez plus precis.",conseil:"Revisez deux auteurs cles avant la prochaine session."},{score:16,pts:"Excellente argumentation. Transitions fluides.",axes:"Conclusion hesitante. Prenez position clairement.",conseil:"Entrainez-vous a conclure en 3 phrases."},{score:12,pts:"Bonne comprehension. Vous rebondissez bien.",axes:"Manque de references precises.",conseil:"Creez des fiches auteurs et citez-les naturellement."},{score:18,pts:"Remarquable. Arguments construits et precis.",axes:"Legeres imprecisions dans les citations.",conseil:"Concentrez-vous sur la fluidite orale."}];
 const TIP = "Structurez en 3 parties : definition, argument, exemple.";
 export default function Home() {
   const [page,setPage]=useState("accueil");
@@ -37,6 +36,7 @@ export default function Home() {
   const [n,setN]=useState(0);
   const [bilan,setBilan]=useState<any>(null);
   const [erreur,setErreur]=useState("");
+  const [genBilan,setGenBilan]=useState(false);
   const [stats,setStats]=useState({sessions:0,moy:0,scores:[] as number[]});
   const end=useRef<HTMLDivElement>(null);
   useEffect(()=>{end.current?.scrollIntoView({behavior:"smooth"});},[msgs,load]);
@@ -53,7 +53,7 @@ export default function Home() {
     } catch(e) { setErreur("Erreur de connexion"); return null; }
   }
   function getPrompt() {
-    const limite = MODES[mode].val === 999 ? "Tu peux poser autant de questions que necessaire. L eleve terminera la session lui-meme." : "Apres exactement "+MODES[mode].val+" echanges, ecris uniquement : FIN_DE_SESSION";
+    const limite = MODES[mode].val === 999 ? "Tu peux poser autant de questions que necessaire." : "Apres exactement "+MODES[mode].val+" echanges, ecris uniquement : FIN_DE_SESSION";
     return "Tu es un examinateur de "+mat?.label+" pour le baccalaureat francais. Niveau : "+NIVEAUX[niv].label+". Le sujet est : "+suj+". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. "+limite;
   }
   async function start() {
@@ -74,22 +74,40 @@ export default function Home() {
       const limite = MODES[mode].val;
       if(repIA.includes("FIN_DE_SESSION")||(limite!==999&&nb>=limite)){
         const texte=repIA.replace("FIN_DE_SESSION","").trim();
-        if(texte)setMsgs([...newMsgs,{role:"assistant",content:texte}]);
-        terminer(newMsgs, nb);
+        const finalMsgs = texte ? [...newMsgs,{role:"assistant",content:texte}] : newMsgs;
+        if(texte) setMsgs(finalMsgs);
+        await terminer(finalMsgs, nb);
       } else {
         setMsgs([...newMsgs,{role:"assistant",content:repIA}]);
       }
     }
     setLoad(false);
   }
-  function terminer(currentMsgs?: Msg[], currentN?: number) {
+  async function terminer(currentMsgs?: Msg[], currentN?: number) {
     const finalMsgs = currentMsgs || msgs;
-    const finalN = currentN || n;
-    const b=B[Math.floor(Math.random()*B.length)];
-    const ns=[...stats.scores,b.score];
-    setStats({sessions:stats.sessions+1,moy:Math.round(ns.reduce((a,b)=>a+b,0)/ns.length),scores:ns});
-    setBilan({...b,n:finalN});
-    setTimeout(()=>setPage("bilan"),500);
+    const finalN = currentN !== undefined ? currentN : n;
+    if(finalN === 0) {
+      setBilan({score:0,pts:"Aucune reponse fournie.",axes:"Repondez aux questions pour obtenir une evaluation.",conseil:"Lancez une nouvelle session et participez activement.",n:0});
+      setPage("bilan");
+      return;
+    }
+    setGenBilan(true);
+    setPage("bilan");
+    const transcription = finalMsgs.map(m=>(m.role==="assistant"?"Examinateur: ":"Eleve: ")+m.content).join("\n\n");
+    const bilanPrompt = "Voici une session orale de "+mat?.label+" sur le sujet: "+suj+".\n\n"+transcription+"\n\nAnalyse les reponses de l eleve et donne un bilan JSON valide:\n{\"score\": 0-20, \"pts\": \"points forts en 1 phrase\", \"axes\": \"axes amelioration en 1 phrase\", \"conseil\": \"conseil concret en 1 phrase\"}\nReponds UNIQUEMENT avec le JSON, sans markdown ni texte autour.";
+    const repIA = await appelIA([{role:"user",content:bilanPrompt}], "Tu es un correcteur bienveillant du baccalaureat francais. Reponds uniquement avec du JSON valide.");
+    setGenBilan(false);
+    if(repIA){
+      try {
+        const clean = repIA.replace(/```json|```/g,"").trim();
+        const parsed = JSON.parse(clean);
+        const ns=[...stats.scores, Number(parsed.score)];
+        setStats({sessions:stats.sessions+1,moy:Math.round(ns.reduce((a:number,b:number)=>a+b,0)/ns.length),scores:ns});
+        setBilan({...parsed,n:finalN});
+      } catch {
+        setBilan({score:12,pts:"Bonne participation.",axes:"Continuez a pratiquer.",conseil:"Faites plusieurs sessions sur le meme sujet.",n:finalN});
+      }
+    }
   }
   const c=mat?.color||"#6366f1";
   const sc=bilan?.score;
@@ -153,11 +171,9 @@ export default function Home() {
         </div>}
         {erreur&&<div style={{padding:"10px 14px",background:"#ef444420",border:"1px solid #ef444440",borderRadius:"10px",color:"#ef4444",fontSize:"13px",marginBottom:"1rem"}}>{erreur}</div>}
         {mat&&suj&&<button onClick={start} disabled={load} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"16px",fontWeight:700,cursor:"pointer",marginBottom:"1rem",opacity:load?0.6:1}}>
-          {load?"Preparation de l examinateur...":"Commencer l oral en "+mat.label+" ->"}
+          {load?"Preparation...":"Commencer l oral en "+mat.label+" ->"}
         </button>}
-        <div style={{padding:"12px 16px",background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"12px",fontSize:"13px",color:"#475569",textAlign:"center"}}>
-          Conseil : {TIP}
-        </div>
+        <div style={{padding:"12px 16px",background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"12px",fontSize:"13px",color:"#475569",textAlign:"center"}}>{TIP}</div>
       </div>
     </main>
   );
@@ -174,12 +190,12 @@ export default function Home() {
           </div>
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <div style={{textAlign:"right"}}>
-              <div style={{fontSize:"13px",fontWeight:700,color:c}}>Q {n}{maxQ!==999?"/"+maxQ:""}</div>
+              <div style={{fontSize:"13px",fontWeight:700,color:c}}>Q {n}{maxQ!==999?" / "+maxQ:""}</div>
               {maxQ!==999&&<div style={{width:"80px",height:"4px",background:"#ffffff10",borderRadius:"2px",marginTop:"4px"}}>
                 <div style={{width:Math.min(Math.round((n/maxQ)*100),100)+"%",height:"100%",background:"linear-gradient(90deg,"+c+",#6366f1)",borderRadius:"2px",transition:"width .4s"}}></div>
               </div>}
             </div>
-            <button onClick={()=>terminer()} style={{padding:"6px 12px",borderRadius:"8px",border:"1px solid #ef444440",background:"#ef444415",color:"#ef4444",fontSize:"12px",cursor:"pointer",fontWeight:600}}>
+            <button onClick={()=>terminer()} disabled={load} style={{padding:"6px 12px",borderRadius:"8px",border:"1px solid #ef444440",background:"#ef444415",color:"#ef4444",fontSize:"12px",cursor:"pointer",fontWeight:600,opacity:load?0.5:1}}>
               Terminer
             </button>
           </div>
@@ -212,48 +228,60 @@ export default function Home() {
     <main style={{minHeight:"100vh",background:"#0a0a1a",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem",fontFamily:"system-ui,sans-serif"}}>
       <div style={{width:"100%",maxWidth:"480px"}}>
         <div style={{textAlign:"center",marginBottom:"1.5rem"}}>
-          <div style={{fontSize:"52px",marginBottom:"8px"}}>{sc>=16?"🏆":sc>=13?"🎯":sc>=10?"📈":"💪"}</div>
-          <h2 style={{fontSize:"24px",fontWeight:800,color:"#fff",margin:"0 0 4px"}}>Session terminee !</h2>
-          <p style={{fontSize:"13px",color:"#64748b",margin:0}}>{mat?.label} - {suj}</p>
-        </div>
-        <div style={{background:"#ffffff06",border:"1px solid "+scC+"33",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+          {genBilan ? (
             <div>
-              <div style={{fontSize:"12px",color:"#64748b",marginBottom:"3px"}}>Votre score</div>
-              <div style={{fontSize:"44px",fontWeight:800,color:scC,lineHeight:1}}>{sc}<span style={{fontSize:"18px",color:"#475569"}}>/20</span></div>
-              <div style={{fontSize:"13px",color:scC,fontWeight:600,marginTop:"3px"}}>{sc>=16?"Excellent !":sc>=13?"Bien":sc>=10?"Passable":"A retravailler"}</div>
+              <div style={{fontSize:"40px",marginBottom:"12px"}}>⏳</div>
+              <h2 style={{fontSize:"22px",fontWeight:800,color:"#fff",margin:"0 0 8px"}}>Analyse en cours...</h2>
+              <p style={{fontSize:"14px",color:"#64748b"}}>L IA evalue vos reponses</p>
             </div>
-            {stats.sessions>0&&<div style={{textAlign:"right"}}>
-              <div style={{fontSize:"11px",color:"#475569"}}>Moyenne</div>
-              <div style={{fontSize:"22px",fontWeight:700,color:"#6366f1"}}>{stats.moy}/20</div>
-              <div style={{fontSize:"11px",color:"#475569"}}>{stats.sessions} sessions</div>
-            </div>}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px",marginBottom:"1.25rem"}}>
-            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
-              <div style={{fontSize:"18px",fontWeight:700,color:"#e2e8f0"}}>{bilan?.n}</div>
-              <div style={{fontSize:"11px",color:"#475569"}}>questions</div>
-            </div>
-            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
-              <div style={{fontSize:"13px",fontWeight:700,color:NIVEAUX[niv].color}}>{NIVEAUX[niv].label}</div>
-              <div style={{fontSize:"11px",color:"#475569"}}>niveau</div>
-            </div>
-            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
-              <div style={{fontSize:"13px",fontWeight:700,color:c}}>{MODES[mode].e}</div>
-              <div style={{fontSize:"11px",color:"#475569"}}>{MODES[mode].label}</div>
-            </div>
-          </div>
-          {[{e:"⭐",t:"Points forts",v:bilan?.pts,col:"#22c55e"},{e:"🎯",t:"A ameliorer",v:bilan?.axes,col:"#f59e0b"},{e:"💡",t:"Conseil",v:bilan?.conseil,col:"#6366f1"}].map(x=>x.v&&(
-            <div key={x.t} style={{marginBottom:"8px",padding:"10px 12px",background:x.col+"12",border:"1px solid "+x.col+"28",borderRadius:"10px"}}>
-              <div style={{fontSize:"12px",fontWeight:600,color:x.col,marginBottom:"3px"}}>{x.e} {x.t}</div>
-              <p style={{fontSize:"13px",color:"#94a3b8",margin:0,lineHeight:1.6}}>{x.v}</p>
-            </div>
-          ))}
+          ) : (
+            <>
+              <div style={{fontSize:"52px",marginBottom:"8px"}}>{sc>=16?"🏆":sc>=13?"🎯":sc>=10?"📈":"💪"}</div>
+              <h2 style={{fontSize:"24px",fontWeight:800,color:"#fff",margin:"0 0 4px"}}>Session terminee !</h2>
+              <p style={{fontSize:"13px",color:"#64748b",margin:0}}>{mat?.label} - {suj}</p>
+            </>
+          )}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
-          <button onClick={start} style={{padding:"13px",borderRadius:"12px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"14px",fontWeight:600,cursor:"pointer"}}>Rejouer</button>
-          <button onClick={()=>setPage("accueil")} style={{padding:"13px",borderRadius:"12px",border:"1px solid #ffffff12",background:"transparent",color:"#94a3b8",fontSize:"14px",cursor:"pointer"}}>Accueil</button>
-        </div>
+        {!genBilan && bilan && <>
+          <div style={{background:"#ffffff06",border:"1px solid "+scC+"33",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+              <div>
+                <div style={{fontSize:"12px",color:"#64748b",marginBottom:"3px"}}>Score IA</div>
+                <div style={{fontSize:"44px",fontWeight:800,color:scC,lineHeight:1}}>{sc}<span style={{fontSize:"18px",color:"#475569"}}>/20</span></div>
+                <div style={{fontSize:"13px",color:scC,fontWeight:600,marginTop:"3px"}}>{sc>=16?"Excellent !":sc>=13?"Bien":sc>=10?"Passable":"A retravailler"}</div>
+              </div>
+              {stats.sessions>0&&<div style={{textAlign:"right"}}>
+                <div style={{fontSize:"11px",color:"#475569"}}>Moyenne</div>
+                <div style={{fontSize:"22px",fontWeight:700,color:"#6366f1"}}>{stats.moy}/20</div>
+                <div style={{fontSize:"11px",color:"#475569"}}>{stats.sessions} sessions</div>
+              </div>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px",marginBottom:"1.25rem"}}>
+              <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:"18px",fontWeight:700,color:"#e2e8f0"}}>{bilan.n}</div>
+                <div style={{fontSize:"11px",color:"#475569"}}>questions</div>
+              </div>
+              <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:"13px",fontWeight:700,color:NIVEAUX[niv].color}}>{NIVEAUX[niv].label}</div>
+                <div style={{fontSize:"11px",color:"#475569"}}>niveau</div>
+              </div>
+              <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:"13px",fontWeight:700,color:c}}>{MODES[mode].e}</div>
+                <div style={{fontSize:"11px",color:"#475569"}}>{MODES[mode].label}</div>
+              </div>
+            </div>
+            {[{e:"⭐",t:"Points forts",v:bilan.pts,col:"#22c55e"},{e:"🎯",t:"A ameliorer",v:bilan.axes,col:"#f59e0b"},{e:"💡",t:"Conseil",v:bilan.conseil,col:"#6366f1"}].map(x=>x.v&&(
+              <div key={x.t} style={{marginBottom:"8px",padding:"10px 12px",background:x.col+"12",border:"1px solid "+x.col+"28",borderRadius:"10px"}}>
+                <div style={{fontSize:"12px",fontWeight:600,color:x.col,marginBottom:"3px"}}>{x.e} {x.t}</div>
+                <p style={{fontSize:"13px",color:"#94a3b8",margin:0,lineHeight:1.6}}>{x.v}</p>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+            <button onClick={start} style={{padding:"13px",borderRadius:"12px",border:"none",background:"linear-gradient(135deg,"+c+",#6366f1)",color:"#fff",fontSize:"14px",fontWeight:600,cursor:"pointer"}}>Rejouer</button>
+            <button onClick={()=>setPage("accueil")} style={{padding:"13px",borderRadius:"12px",border:"1px solid #ffffff12",background:"transparent",color:"#94a3b8",fontSize:"14px",cursor:"pointer"}}>Accueil</button>
+          </div>
+        </>}
       </div>
     </main>
   );
