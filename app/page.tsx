@@ -22,6 +22,7 @@ const SUJETS: Record<string,string[]> = {
   info:["Les algorithmes","L intelligence artificielle","La cybersecurite","Les reseaux","La cryptographie","Le Big Data","La programmation orientee objet","Les bases de donnees"],
 };
 const NIVEAUX=[{label:"Debutant",desc:"Bienveillant",color:"#22c55e",e:"🌱"},{label:"Intermediaire",desc:"Niveau bac",color:"#3b82f6",e:"📘"},{label:"Expert",desc:"Niveau prepa",color:"#f59e0b",e:"🔥"}];
+const MODES=[{label:"6 questions",desc:"Session rapide",val:6,e:"⚡"},{label:"12 questions",desc:"Session complete",val:12,e:"📘"},{label:"Infini",desc:"Sans limite",val:999,e:"♾️"}];
 const B=[{score:14,pts:"Bonne structure. Fil directeur coherent.",axes:"Exemples trop vagues. Soyez plus precis.",conseil:"Revisez deux auteurs cles avant la prochaine session."},{score:16,pts:"Excellente argumentation. Transitions fluides.",axes:"Conclusion hesitante. Prenez position clairement.",conseil:"Entrainez-vous a conclure en 3 phrases."},{score:12,pts:"Bonne comprehension. Vous rebondissez bien.",axes:"Manque de references precises.",conseil:"Creez des fiches auteurs et citez-les naturellement."},{score:18,pts:"Remarquable. Arguments construits et precis.",axes:"Legeres imprecisions dans les citations.",conseil:"Concentrez-vous sur la fluidite orale."}];
 const TIP = "Structurez en 3 parties : definition, argument, exemple.";
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
   const [mat,setMat]=useState<typeof MATIERES[0]|null>(null);
   const [suj,setSuj]=useState("");
   const [niv,setNiv]=useState(1);
+  const [mode,setMode]=useState(0);
   const [msgs,setMsgs]=useState<Msg[]>([]);
   const [rep,setRep]=useState("");
   const [load,setLoad]=useState(false);
@@ -51,7 +53,8 @@ export default function Home() {
     } catch(e) { setErreur("Erreur de connexion"); return null; }
   }
   function getPrompt() {
-    return "Tu es un examinateur de "+mat?.label+" pour le baccalaureat francais. Niveau : "+NIVEAUX[niv].label+". Le sujet est : "+suj+". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. Apres exactement 6 echanges, ecris uniquement : FIN_DE_SESSION";
+    const limite = MODES[mode].val === 999 ? "Tu peux poser autant de questions que necessaire. L eleve terminera la session lui-meme." : "Apres exactement "+MODES[mode].val+" echanges, ecris uniquement : FIN_DE_SESSION";
+    return "Tu es un examinateur de "+mat?.label+" pour le baccalaureat francais. Niveau : "+NIVEAUX[niv].label+". Le sujet est : "+suj+". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. "+limite;
   }
   async function start() {
     if(!mat||!suj.trim())return;
@@ -68,23 +71,30 @@ export default function Home() {
     const history: Msg[]=newMsgs.map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.content}));
     const repIA = await appelIA(history, getPrompt());
     if(repIA){
-      if(repIA.includes("FIN_DE_SESSION")||nb>=6){
+      const limite = MODES[mode].val;
+      if(repIA.includes("FIN_DE_SESSION")||(limite!==999&&nb>=limite)){
         const texte=repIA.replace("FIN_DE_SESSION","").trim();
         if(texte)setMsgs([...newMsgs,{role:"assistant",content:texte}]);
-        const b=B[Math.floor(Math.random()*B.length)];
-        const ns=[...stats.scores,b.score];
-        setStats({sessions:stats.sessions+1,moy:Math.round(ns.reduce((a,b)=>a+b,0)/ns.length),scores:ns});
-        setBilan({...b,n:nb});
-        setTimeout(()=>setPage("bilan"),1800);
+        terminer(newMsgs, nb);
       } else {
         setMsgs([...newMsgs,{role:"assistant",content:repIA}]);
       }
     }
     setLoad(false);
   }
+  function terminer(currentMsgs?: Msg[], currentN?: number) {
+    const finalMsgs = currentMsgs || msgs;
+    const finalN = currentN || n;
+    const b=B[Math.floor(Math.random()*B.length)];
+    const ns=[...stats.scores,b.score];
+    setStats({sessions:stats.sessions+1,moy:Math.round(ns.reduce((a,b)=>a+b,0)/ns.length),scores:ns});
+    setBilan({...b,n:finalN});
+    setTimeout(()=>setPage("bilan"),500);
+  }
   const c=mat?.color||"#6366f1";
   const sc=bilan?.score;
   const scC=sc>=16?"#22c55e":sc>=13?"#6366f1":sc>=10?"#f59e0b":"#ef4444";
+  const maxQ = MODES[mode].val;
   if(page==="accueil")return(
     <main style={{minHeight:"100vh",background:"#0a0a1a",fontFamily:"system-ui,sans-serif",color:"#fff",padding:"1rem"}}>
       <div style={{maxWidth:"780px",margin:"0 auto",paddingTop:"2rem"}}>
@@ -117,14 +127,26 @@ export default function Home() {
           </div>
           <input value={suj} onChange={e=>setSuj(e.target.value)} onKeyDown={e=>e.key==="Enter"&&start()} placeholder="Ou tapez votre propre sujet..." style={{width:"100%",padding:"11px 14px",borderRadius:"12px",border:"1px solid #ffffff12",background:"#ffffff06",color:"#fff",fontSize:"14px",outline:"none",boxSizing:"border-box"}}/>
         </div>}
-        {mat&&suj&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1.25rem"}}>
-          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>3. Choisissez votre niveau</div>
+        {mat&&suj&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1rem"}}>
+          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>3. Niveau de l examinateur</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>
             {NIVEAUX.map((nv,i)=>(
               <button key={i} onClick={()=>setNiv(i)} style={{padding:"14px 8px",borderRadius:"14px",border:niv===i?"2px solid "+nv.color:"1px solid #ffffff10",background:niv===i?nv.color+"18":"#ffffff04",color:niv===i?nv.color:"#64748b",cursor:"pointer",textAlign:"center"}}>
                 <div style={{fontSize:"22px",marginBottom:"4px"}}>{nv.e}</div>
                 <div style={{fontSize:"13px",fontWeight:600}}>{nv.label}</div>
                 <div style={{fontSize:"11px",opacity:.7,marginTop:"2px"}}>{nv.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>}
+        {mat&&suj&&<div style={{background:"#ffffff06",border:"1px solid #ffffff0f",borderRadius:"18px",padding:"1.5rem",marginBottom:"1.25rem"}}>
+          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"12px"}}>4. Duree de la session</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>
+            {MODES.map((mo,i)=>(
+              <button key={i} onClick={()=>setMode(i)} style={{padding:"14px 8px",borderRadius:"14px",border:mode===i?"2px solid "+c:"1px solid #ffffff10",background:mode===i?c+"18":"#ffffff04",color:mode===i?c:"#64748b",cursor:"pointer",textAlign:"center"}}>
+                <div style={{fontSize:"22px",marginBottom:"4px"}}>{mo.e}</div>
+                <div style={{fontSize:"13px",fontWeight:600}}>{mo.label}</div>
+                <div style={{fontSize:"11px",opacity:.7,marginTop:"2px"}}>{mo.desc}</div>
               </button>
             ))}
           </div>
@@ -150,11 +172,16 @@ export default function Home() {
               <p style={{fontSize:"12px",color:"#64748b",margin:0}}>{suj} - {NIVEAUX[niv].label}</p>
             </div>
           </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:"13px",fontWeight:700,color:c}}>Q {n}/6</div>
-            <div style={{width:"90px",height:"4px",background:"#ffffff10",borderRadius:"2px",marginTop:"4px"}}>
-              <div style={{width:Math.round((n/6)*100)+"%",height:"100%",background:"linear-gradient(90deg,"+c+",#6366f1)",borderRadius:"2px",transition:"width .4s"}}></div>
+          <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:"13px",fontWeight:700,color:c}}>Q {n}{maxQ!==999?"/"+maxQ:""}</div>
+              {maxQ!==999&&<div style={{width:"80px",height:"4px",background:"#ffffff10",borderRadius:"2px",marginTop:"4px"}}>
+                <div style={{width:Math.min(Math.round((n/maxQ)*100),100)+"%",height:"100%",background:"linear-gradient(90deg,"+c+",#6366f1)",borderRadius:"2px",transition:"width .4s"}}></div>
+              </div>}
             </div>
+            <button onClick={()=>terminer()} style={{padding:"6px 12px",borderRadius:"8px",border:"1px solid #ef444440",background:"#ef444415",color:"#ef4444",fontSize:"12px",cursor:"pointer",fontWeight:600}}>
+              Terminer
+            </button>
           </div>
         </div>
         {erreur&&<div style={{padding:"10px 14px",background:"#ef444420",color:"#ef4444",fontSize:"13px",borderBottom:"1px solid #ef444430"}}>{erreur}</div>}
@@ -201,6 +228,20 @@ export default function Home() {
               <div style={{fontSize:"22px",fontWeight:700,color:"#6366f1"}}>{stats.moy}/20</div>
               <div style={{fontSize:"11px",color:"#475569"}}>{stats.sessions} sessions</div>
             </div>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px",marginBottom:"1.25rem"}}>
+            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
+              <div style={{fontSize:"18px",fontWeight:700,color:"#e2e8f0"}}>{bilan?.n}</div>
+              <div style={{fontSize:"11px",color:"#475569"}}>questions</div>
+            </div>
+            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
+              <div style={{fontSize:"13px",fontWeight:700,color:NIVEAUX[niv].color}}>{NIVEAUX[niv].label}</div>
+              <div style={{fontSize:"11px",color:"#475569"}}>niveau</div>
+            </div>
+            <div style={{background:"#ffffff05",border:"1px solid #ffffff08",borderRadius:"10px",padding:"10px",textAlign:"center"}}>
+              <div style={{fontSize:"13px",fontWeight:700,color:c}}>{MODES[mode].e}</div>
+              <div style={{fontSize:"11px",color:"#475569"}}>{MODES[mode].label}</div>
+            </div>
           </div>
           {[{e:"⭐",t:"Points forts",v:bilan?.pts,col:"#22c55e"},{e:"🎯",t:"A ameliorer",v:bilan?.axes,col:"#f59e0b"},{e:"💡",t:"Conseil",v:bilan?.conseil,col:"#6366f1"}].map(x=>x.v&&(
             <div key={x.t} style={{marginBottom:"8px",padding:"10px 12px",background:x.col+"12",border:"1px solid "+x.col+"28",borderRadius:"10px"}}>

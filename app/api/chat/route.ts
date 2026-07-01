@@ -13,20 +13,15 @@ export async function POST(request: Request) {
           { role: "system", content: systemPrompt },
           ...messages
         ],
-        max_tokens: 1024,
+        max_tokens: 512,
         temperature: 0.7
       })
     });
     const data = await response.json();
-    console.log("Groq response:", JSON.stringify(data).slice(0, 200));
     const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      console.error("Pas de contenu:", data);
-      return Response.json({ error: "Reponse vide de Groq" }, { status: 500 });
-    }
+    if (!content) return Response.json({ error: "Reponse vide de Groq" }, { status: 500 });
     return Response.json({ content });
   } catch (error: any) {
-    console.error("Erreur:", error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
