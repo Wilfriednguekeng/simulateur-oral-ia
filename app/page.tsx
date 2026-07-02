@@ -33,6 +33,13 @@ const SUJETS: Record<string,string[]> = {
   autre:[],
 };
 const NIVEAUX=[{label:"Debutant",desc:"Bienveillant",color:"#22c55e",e:"🌱"},{label:"Intermediaire",desc:"Niveau bac",color:"#3b82f6",e:"📘"},{label:"Expert",desc:"Niveau prepa",color:"#f59e0b",e:"🔥"}];
+const PERSONNALITES=[
+  {id:"classique",label:"Classique",emoji:"🎓",desc:"Serieux et rigoureux",color:"#6366f1",prompt:"Tu es un examinateur serieux et rigoureux du baccalaureat francais."},
+  {id:"bienveillant",label:"Bienveillant",emoji:"😊",desc:"Doux et encourageant",color:"#22c55e",prompt:"Tu es un examinateur tres bienveillant et encourageant. Tu felicites l eleve apres chaque bonne reponse."},
+  {id:"socrate",label:"Socrate",emoji:"🏛️",desc:"Pose des questions profondes",color:"#8b5cf6",prompt:"Tu es un examinateur philosophe inspire de Socrate. Tu reponds a chaque reponse par une autre question plus profonde qui pousse l eleve a reflechir davantage."},
+  {id:"strict",label:"Strict",emoji:"😤",desc:"Tres exigeant",color:"#ef4444",prompt:"Tu es un examinateur tres strict et exigeant. Tu releves chaque imprécision et demandes toujours plus de precision et de rigueur."},
+  {id:"humour",label:"Humoristique",emoji:"😄",desc:"Detendu et drole",color:"#f59e0b",prompt:"Tu es un examinateur detendu avec un peu d humour. Tu gardes un ton leger tout en restant pedagogique."},
+];
 const MODES=[{label:"6 questions",desc:"Session rapide",val:6,e:"⚡"},{label:"12 questions",desc:"Session complete",val:12,e:"📘"},{label:"Infini",desc:"Sans limite",val:999,e:"♾️"}];
 const DUREE_CHRONO = 30 * 60;
 const TIPS = ["Structurez en 3 parties : definition, argument, exemple.","Citez toujours un auteur pour renforcer vos arguments.","Prenez 5 secondes pour organiser vos idees avant de repondre.","Utilisez des connecteurs : Cependant, En effet, Ainsi, Toutefois.","Reformulez la question avant d y repondre pour montrer votre comprehension.","Terminez chaque reponse par une mini-conclusion en une phrase."];
@@ -48,6 +55,7 @@ export default function Home() {
   const [matCustom, setMatCustom] = useState("");
   const [niv, setNiv] = useState(1);
   const [mode, setMode] = useState(0);
+  const [perso, setPerso] = useState(0);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [rep, setRep] = useState("");
   const [load, setLoad] = useState(false);
@@ -131,7 +139,8 @@ export default function Home() {
 
   function getPrompt() {
     const limite = MODES[mode].val === 999 ? "Tu peux poser autant de questions que necessaire." : "Apres exactement " + MODES[mode].val + " echanges, ecris uniquement : FIN_DE_SESSION";
-    return "Tu es un examinateur de " + matLabel + " pour le baccalaureat francais. Niveau : " + NIVEAUX[niv].label + ". Le sujet est : " + suj + ". Pose UNE seule question a la fois. Rebondis sur les reponses. Ne donne jamais la reponse. " + limite;
+    const promptPerso = PERSONNALITES[perso].prompt;
+    return promptPerso + " Matiere : " + matLabel + ". Niveau : " + NIVEAUX[niv].label + ". Le sujet est : " + suj + ". Pose UNE seule question a la fois. Ne donne jamais la reponse. " + limite;
   }
 
   async function genererFiche() {
@@ -323,7 +332,19 @@ export default function Home() {
         </div>}
 
         {mat && suj && <div style={{ background: "#ffffff06", border: "1px solid #ffffff0f", borderRadius: "18px", padding: "1.5rem", marginBottom: "1rem" }}>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>3. Niveau de l examinateur</div>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>3. Personnalite de l examinateur</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: "8px" }}>
+            {PERSONNALITES.map((p, i) => (
+              <button key={i} onClick={() => setPerso(i)} style={{ padding: "12px 8px", borderRadius: "14px", border: perso === i ? "2px solid " + p.color : "1px solid #ffffff10", background: perso === i ? p.color + "18" : "#ffffff04", color: perso === i ? p.color : "#64748b", cursor: "pointer", textAlign: "center" }}>
+                <div style={{ fontSize: "22px", marginBottom: "4px" }}>{p.emoji}</div>
+                <div style={{ fontSize: "12px", fontWeight: perso === i ? 700 : 400 }}>{p.label}</div>
+                <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "2px" }}>{p.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>}
+        {mat && suj && <div style={{ background: "#ffffff06", border: "1px solid #ffffff0f", borderRadius: "18px", padding: "1.5rem", marginBottom: "1rem" }}>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>4. Niveau de l examinateur</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "8px" }}>
             {NIVEAUX.map((nv, i) => (
               <button key={i} onClick={() => setNiv(i)} style={{ padding: "14px 8px", borderRadius: "14px", border: niv === i ? "2px solid " + nv.color : "1px solid #ffffff10", background: niv === i ? nv.color + "18" : "#ffffff04", color: niv === i ? nv.color : "#64748b", cursor: "pointer", textAlign: "center" }}>
