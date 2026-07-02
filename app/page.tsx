@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import AccessibiliteBar, { useAccessibilite } from "./components/AccessibiliteBar";
 import { useSpeechToText, useTextToSpeech } from "../hooks/useAudio";
 type Msg = { role: string; content: string };
 const MATIERES = [
@@ -67,11 +68,15 @@ export default function Home() {
   const [tipIdx, setTipIdx] = useState(0); useEffect(() => { setTipIdx(Math.floor(Math.random() * TIPS.length)); }, []);
   const [scorePartage, setScorePartage] = useState("");
   const [copied, setCopied] = useState(false);
+  const { config: a11y, update: updateA11y } = useAccessibilite();
+  const [fontSize, setFontSize] = useState(14);
+  const [contraste, setContraste] = useState(false);
+  const [lectureAuto, setLectureAuto] = useState(false);
   const [showClassement, setShowClassement] = useState(false);
   const [classement, setClassement] = useState<any[]>([]);
   const end = useRef<HTMLDivElement>(null);
   const [voixActive, setVoixActive] = useState(true);
-  const { lire, arreter, parle } = useTextToSpeech();
+  const { lire, arreter, parle, tester: testerVoix } = useTextToSpeech();
   const { ecoute, toggleEcoute } = useSpeechToText((texte: string) => setRep(r => r + texte));
   const chronoRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -143,7 +148,7 @@ export default function Home() {
     setMsgs([]); setN(0); setBilan(null); setErreur(""); setFiche(""); setShowFiche(false);
     setChrono(DUREE_CHRONO); setChronoActif(true); setChronoFini(false); setLoad(true);
     const repIA = await appelIA([{ role: "user", content: "Commence l examen." }], getPrompt());
-    if (repIA) { setMsgs([{ role: "assistant", content: repIA }]); setPage("chat"); if(voixActive) lire(repIA); }
+    if (repIA) { setMsgs([{ role: "assistant", content: repIA }]); setPage("chat"); if(voixActive || a11y.lectureAuto) lire(repIA); }
     setLoad(false);
   }
 
@@ -160,7 +165,7 @@ export default function Home() {
         const finalMsgs = texte ? [...newMsgs, { role: "assistant", content: texte }] : newMsgs;
         if (texte) setMsgs(finalMsgs);
         await terminer(finalMsgs, nb);
-      } else { setMsgs([...newMsgs, { role: "assistant", content: repIA }]); if(voixActive) lire(repIA); }
+      } else { setMsgs([...newMsgs, { role: "assistant", content: repIA }]); if(voixActive || a11y.lectureAuto) lire(repIA); }
     }
     setLoad(false);
   }
@@ -202,9 +207,10 @@ export default function Home() {
   const chronoColor = chrono < 300 ? "#ef4444" : chrono < 600 ? "#f59e0b" : "#22c55e";
 
   if (page === "accueil") return (
-    <main style={{ minHeight: "100vh", background: "#0a0a1a", fontFamily: "system-ui,sans-serif", color: "#fff", padding: "1rem" }}>
+    <main style={{ minHeight: "100vh", background: contraste ? "#000" : "#0a0a1a", fontFamily: "system-ui,sans-serif", color: contraste ? "#fff" : "#fff", padding: "1rem", fontSize: fontSize + "px" }} suppressHydrationWarning>
       <div style={{ maxWidth: "780px", margin: "0 auto", paddingTop: "1.5rem" }}>
 
+        <AccessibiliteBar config={a11y} update={updateA11y} testerVoix={testerVoix} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <div style={{ fontSize: "20px", fontWeight: 800, background: "linear-gradient(135deg,#fff,#a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>🎓 OralIA</div>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -392,11 +398,11 @@ export default function Home() {
               {[0, 150, 300].map(d => <span key={d} style={{ width: "6px", height: "6px", borderRadius: "50%", background: c, display: "inline-block", animation: "b 1.2s infinite", animationDelay: d + "ms", opacity: .8 }}></span>)}
             </div>
           </div>}
-          <div ref={end} />
+          <div ref={end} /><div aria-live="polite" aria-atomic="true" style={{ position: "absolute", left: "-9999px" }}>Question {n} sur {maxQ !== 999 ? maxQ : "illimitee"}</div>
         </div>
         <div style={{ padding: "10px 14px", borderTop: "1px solid #ffffff08", background: "#0a0a1a", display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <textarea value={rep} onChange={e => setRep(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Tapez votre reponse... (Entree pour envoyer)" rows={2} style={{ flex: 1, padding: "10px 14px", borderRadius: "12px", border: "1px solid #ffffff10", background: "#ffffff08", color: "#fff", fontSize: "14px", resize: "none", fontFamily: "inherit", lineHeight: 1.5, outline: "none" }} />
-          <button onClick={toggleEcoute} title="Parler" style={{ width: "40px", height: "40px", borderRadius: "10px", border: "none", background: ecoute ? "#ef444430" : "#ffffff10", color: ecoute ? "#ef4444" : "#94a3b8", fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>🎤</button><button onClick={() => { arreter(); setVoixActive(v => !v); }} title="Voix" style={{ width: "40px", height: "40px", borderRadius: "10px", border: "none", background: voixActive ? c+"30" : "#ffffff10", color: voixActive ? c : "#64748b", fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>{voixActive ? "🔊" : "🔇"}</button><button onClick={send} disabled={!rep.trim() || load} style={{ width: "40px", height: "40px", borderRadius: "10px", border: "none", background: rep.trim() && !load ? "linear-gradient(135deg," + c + ",#6366f1)" : "#ffffff10", color: "#fff", cursor: rep.trim() && !load ? "pointer" : "not-allowed", fontSize: "18px", flexShrink: 0 }}>↑</button>
+          <button onClick={toggleEcoute} title="Parler" style={{ width: "40px", height: "40px", borderRadius: "10px", border: "none", background: ecoute ? "#ef444430" : "#ffffff10", color: ecoute ? "#ef4444" : "#94a3b8", fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>🎤</button><button onClick={() => { arreter(); setVoixActive(v => { setLectureAuto(!v); return !v; }); }} title="Voix" style={{ width: "40px", height: "40px", borderRadius: "10px", border: "none", background: voixActive ? c+"30" : "#ffffff10", color: voixActive ? c : "#64748b", fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>{voixActive ? "🔊" : "🔇"}</button><button onClick={send} disabled={!rep.trim() || load} style={{ width: "40px", height: "40px", borderRadius: "10px", border: "none", background: rep.trim() && !load ? "linear-gradient(135deg," + c + ",#6366f1)" : "#ffffff10", color: "#fff", cursor: rep.trim() && !load ? "pointer" : "not-allowed", fontSize: "18px", flexShrink: 0 }}>↑</button>
         </div>
       </div>
       <style>{"@keyframes b{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}"}</style>

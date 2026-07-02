@@ -27,7 +27,15 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><a href="#contenu-principal" className="skip-link">Aller au contenu principal</a>
+        <svg style={{position:"absolute",width:0,height:0}} aria-hidden="true">
+          <defs>
+            <filter id="colorblind-filter">
+              <feColorMatrix type="matrix" values="0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0"/>
+            </filter>
+          </defs>
+        </svg>
+        {children}</body>
     </html>
   );
 }

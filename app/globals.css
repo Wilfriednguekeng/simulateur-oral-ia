@@ -1,26 +1,84 @@
-@import "tailwindcss";
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-size-base: 16px;
+  --color-bg: #0a0a1a;
+  --color-surface: #0f0f1e;
+  --color-text: #ffffff;
+  --color-text-secondary: #94a3b8;
+  --color-border: rgba(255,255,255,0.1);
+  --color-primary: #6366f1;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --spacing-btn: 12px 20px;
+  --radius: 12px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Mode contraste eleve */
+.high-contrast {
+  --color-bg: #000000;
+  --color-surface: #111111;
+  --color-text: #ffffff;
+  --color-text-secondary: #cccccc;
+  --color-border: rgba(255,255,255,0.4);
+  --color-primary: #7c7fff;
+  --color-success: #00ff88;
+  --color-warning: #ffcc00;
+  --color-error: #ff5555;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Mode daltonisme - filtre SVG global */
+.colorblind {
+  filter: url(#colorblind-filter);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Forcer les couleurs accessibles */
+.colorblind button,
+.colorblind div,
+.colorblind p,
+.colorblind span {
+  --color-primary: #0077bb !important;
+  --color-success: #009988 !important;
+  --color-warning: #ee7733 !important;
+  --color-error: #cc3311 !important;
+}
+
+/* Taille de police */
+.font-small { font-size: 14px !important; }
+.font-normal { font-size: 16px !important; }
+.font-large { font-size: 20px !important; }
+.font-xlarge { font-size: 24px !important; }
+
+/* Reduire les animations */
+.no-motion * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Focus visible pour navigation clavier */
+*:focus-visible {
+  outline: 3px solid var(--color-primary) !important;
+  outline-offset: 3px !important;
+}
+
+/* Boutons accessibles */
+button, a {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Skip link */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  background: var(--color-primary);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 0 0 8px 0;
+  z-index: 9999;
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 0;
 }

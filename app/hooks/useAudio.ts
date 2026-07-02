@@ -1,25 +1,30 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export function useSpeechToText(onResult: (text: string) => void) {
   const [ecoute, setEcoute] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  useEffect(() => {
+  const init = useCallback(() => {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR || recognitionRef.current) return;
     const r = new SR();
     r.lang = "fr-FR";
     r.continuous = false;
     r.interimResults = false;
     r.onresult = (e: any) => { onResult(e.results[0][0].transcript); setEcoute(false); };
+    r.onerror = () => setEcoute(false);
     r.onend = () => setEcoute(false);
     recognitionRef.current = r;
   }, [onResult]);
 
   function toggleEcoute() {
-    if (!recognitionRef.current) return;
+    init();
+    if (!recognitionRef.current) {
+      alert("Votre navigateur ne supporte pas la reconnaissance vocale. Essayez Chrome.");
+      return;
+    }
     if (ecoute) { recognitionRef.current.stop(); setEcoute(false); }
     else { recognitionRef.current.start(); setEcoute(true); }
   }
@@ -29,19 +34,44 @@ export function useSpeechToText(onResult: (text: string) => void) {
 
 export function useTextToSpeech() {
   const [parle, setParle] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   function lire(texte: string) {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      console.warn("Synthese vocale non disponible");
+      return;
+    }
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(texte);
     u.lang = "fr-FR";
-    u.rate = 0.9;
+    u.rate = 0.85;
     u.pitch = 1;
-    const voix = window.speechSynthesis.getVoices().find(v => v.lang.startsWith("fr"));
-    if (voix) u.voice = voix;
+    u.volume = 1;
+
+    // Chercher une voix francaise
+    const chargerVoix = () => {
+      const voix = window.speechSynthesis.getVoices();
+      const voixFR = voix.find(v => v.lang === "fr-FR") ||
+                     voix.find(v => v.lang.startsWith("fr")) ||
+                     voix[0];
+      if (voixFR) u.voice = voixFR;
+    };
+
+    chargerVoix();
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.addEventListener("voiceschanged", chargerVoix, { once: true });
+    }
+
     u.onstart = () => setParle(true);
     u.onend = () => setParle(false);
-    window.speechSynthesis.speak(u);
+    u.onerror = (e) => { console.warn("Erreur synthese vocale:", e); setParle(false); };
+
+    utteranceRef.current = u;
+
+    // Safari fix - demarrer apres un court delai
+    setTimeout(() => {
+      try { window.speechSynthesis.speak(u); } catch(e) { console.warn(e); }
+    }, 100);
   }
 
   function arreter() {
@@ -50,5 +80,9 @@ export function useTextToSpeech() {
     setParle(false);
   }
 
-  return { lire, arreter, parle };
+  function tester() {
+    lire("Test de la synthese vocale. Bonjour, je suis votre examinateur.");
+  }
+
+  return { lire, arreter, parle, tester };
 }
