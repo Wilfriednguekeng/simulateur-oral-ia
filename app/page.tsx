@@ -165,7 +165,10 @@ export default function Home() {
         const finalMsgs = texte ? [...newMsgs, { role: "assistant", content: texte }] : newMsgs;
         if (texte) setMsgs(finalMsgs);
         await terminer(finalMsgs, nb);
-      } else { setMsgs([...newMsgs, { role: "assistant", content: repIA }]); if(voixActive || a11y.lectureAuto) lire(repIA); }
+      } else {
+        setMsgs([...newMsgs, { role: "assistant", content: repIA }]);
+        if(voixActive || a11y.lectureAuto) lire(repIA);
+      }
     }
     setLoad(false);
   }
@@ -399,6 +402,35 @@ export default function Home() {
             </div>
           </div>}
           <div ref={end} /><div aria-live="polite" aria-atomic="true" style={{ position: "absolute", left: "-9999px" }}>Question {n} sur {maxQ !== 999 ? maxQ : "illimitee"}</div>
+        </div>
+        <div style={{ padding: "6px 14px", borderTop: "1px solid #ffffff08", background: "#0a0a1a", display: "flex", gap: "6px", overflowX: "auto" }}>
+          <button onClick={async () => {
+            if (!msgs.length || load) return;
+            setLoad(true);
+            const reps = msgs.filter(m => m.role === "user");
+            if (!reps.length) { setLoad(false); return; }
+            const derniere = reps[reps.length - 1].content;
+            const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "Corrige cette reponse d oral sur " + suj + " : " + derniere }], systemPrompt: "Correcteur bienveillant. 3 points : bien, manque, amelioration." }) });
+            const d = await res.json();
+            if (d.content) setMsgs(prev => [...prev, { role: "assistant", content: "Correction : " + d.content }]);
+            setLoad(false);
+          }} disabled={load} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid #6366f140", background: "#6366f115", color: "#a5b4fc", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}>Corriger</button>
+          <button onClick={async () => {
+            if (load) return;
+            setLoad(true);
+            const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "3 auteurs cles pour " + matLabel + " sur " + suj }], systemPrompt: "Professeur expert. Reponds en 3 points courts." }) });
+            const d = await res.json();
+            if (d.content) setMsgs(prev => [...prev, { role: "assistant", content: "Auteurs : " + d.content }]);
+            setLoad(false);
+          }} disabled={load} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid #f59e0b40", background: "#f59e0b15", color: "#f59e0b", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}>Auteurs</button>
+          <button onClick={async () => {
+            if (load) return;
+            setLoad(true);
+            const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "1 conseil coach pour mon oral de " + matLabel + " sur " + suj }], systemPrompt: "Coach prise de parole. 2-3 phrases max." }) });
+            const d = await res.json();
+            if (d.content) setMsgs(prev => [...prev, { role: "assistant", content: "Coach : " + d.content }]);
+            setLoad(false);
+          }} disabled={load} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid #22c55e40", background: "#22c55e15", color: "#22c55e", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}>Coach</button>
         </div>
         <div style={{ padding: "10px 14px", borderTop: "1px solid #ffffff08", background: "#0a0a1a", display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <textarea value={rep} onChange={e => setRep(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Tapez votre reponse... (Entree pour envoyer)" rows={2} style={{ flex: 1, padding: "10px 14px", borderRadius: "12px", border: "1px solid #ffffff10", background: "#ffffff08", color: "#fff", fontSize: "14px", resize: "none", fontFamily: "inherit", lineHeight: 1.5, outline: "none" }} />
