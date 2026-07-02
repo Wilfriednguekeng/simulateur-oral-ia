@@ -76,7 +76,7 @@ export default function Home() {
   const [classement, setClassement] = useState<any[]>([]);
   const end = useRef<HTMLDivElement>(null);
   const [voixActive, setVoixActive] = useState(true);
-  const { lire, arreter, parle, tester: testerVoix } = useTextToSpeech();
+  const { lire, arreter, parle } = useTextToSpeech(); const testerVoix = () => lire("Test de la synthese vocale. Bonjour je suis votre examinateur.");
   const { ecoute, toggleEcoute } = useSpeechToText((texte: string) => setRep(r => r + texte));
   const chronoRef = useRef<NodeJS.Timeout | null>(null);
 
