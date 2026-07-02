@@ -220,7 +220,7 @@ export default function Home() {
             <a href="/revision" style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", borderRadius: "10px", padding: "7px 14px", fontSize: "12px", color: "#fff", textDecoration: "none", fontWeight: 700 }}>📝 Revision Express</a><a href="/competition" style={{ background: "linear-gradient(135deg,#f59e0b,#ef4444)", borderRadius: "10px", padding: "7px 14px", fontSize: "12px", color: "#fff", textDecoration: "none", fontWeight: 700 }}>🏆 Mode Competition</a><button onClick={chargerClassement} style={{ background: "#f59e0b15", border: "1px solid #f59e0b30", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#f59e0b", cursor: "pointer" }}>📊 Classement</button>
             {user ? (
               <div style={{ display: "flex", gap: "8px" }}>
-                <div style={{ background: "#ffffff08", border: "1px solid #ffffff10", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#94a3b8" }}>👤 {user.email?.split("@")[0]}</div>
+                <a href="/profil" style={{ background: "#ffffff08", border: "1px solid #ffffff10", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#94a3b8", textDecoration: "none" }}>👤 {user.email?.split("@")[0]}</a>
                 <button onClick={() => supabase.auth.signOut()} style={{ background: "#ef444415", border: "1px solid #ef444430", borderRadius: "10px", padding: "7px 12px", fontSize: "12px", color: "#ef4444", cursor: "pointer" }}>Deconnexion</button>
               </div>
             ) : (
